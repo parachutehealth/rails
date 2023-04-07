@@ -134,6 +134,8 @@ module ActiveRecord
     include ActiveSupport::ActionableError
 
     action "Run pending migrations" do
+      ActiveRecord.load_migration_config
+
       ActiveRecord::Tasks::DatabaseTasks.migrate
 
       if ActiveRecord.dump_schema_after_migration
@@ -644,6 +646,8 @@ module ActiveRecord
 
       # Raises <tt>ActiveRecord::PendingMigrationError</tt> error if any migrations are pending.
       def check_pending!(connection = ActiveRecord::Tasks::DatabaseTasks.migration_connection)
+        ActiveRecord.load_migration_config
+
         if pending_migrations = connection.migration_context.pending_migrations
           raise ActiveRecord::PendingMigrationError.new(pending_migrations: pending_migrations)
         end
@@ -706,6 +710,8 @@ module ActiveRecord
         end
 
         def pending_migrations
+          ActiveRecord.load_migration_config
+
           pending_migrations = []
 
           ActiveRecord::Tasks::DatabaseTasks.with_temporary_connection_for_each(env: env) do |connection|
@@ -1532,4 +1538,16 @@ module ActiveRecord
         MIGRATOR_SALT * db_name_hash
       end
   end
+
+  private
+    def load_migration_config
+      return unless defined?(Rails.application) && Rails.application
+
+      if ActiveRecord::Base.configurations.empty?
+        ActiveRecord::Base.configurations = ActiveRecord::Tasks::DatabaseTasks.database_configuration
+      end
+
+      ActiveRecord::Migrator.migrations_paths = ActiveRecord::Tasks::DatabaseTasks.migrations_paths
+    end
+    module_function :load_migration_config
 end
